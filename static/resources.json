@@ -26,6 +26,10 @@
       "Sublime Text (Paid, with shareware-style \"trial\")": {
         "description": "A powerful Python-backed editor with great community support and a wealth of extensions.",
         "url": "https://www.sublimetext.com/"
+      },
+      "Atom Text Editor (Free, open source)": {
+        "description": "An alternative to Sublime Text, with a vast library of open source packages for Python and other development tools. Developed by GitHub",
+        "url": "https://atom.io/"
       }
     }
   },
