@@ -3,10 +3,51 @@ import os
 from functools import wraps
 from json import JSONDecodeError
 
-from flask import request
+from flask import redirect, request, url_for
 from schema import Schema, SchemaError
+from werkzeug.exceptions import Forbidden
 
-from pysite.constants import ErrorCodes, ValidationTypes
+from pysite.base_route import APIView, BaseView
+from pysite.constants import CSRF, DEBUG_MODE, ErrorCodes, ValidationTypes
+
+
+def csrf(f):
+    """
+    Apply CSRF protection to a specific view function.
+    """
+
+    @wraps(f)
+    def inner_decorator(*args, **kwargs):
+        CSRF.protect()
+
+        return f(*args, **kwargs)
+
+    return inner_decorator
+
+
+def require_roles(*roles: int):
+    def inner_decorator(f):
+
+        @wraps(f)
+        def inner(self: BaseView, *args, **kwargs):
+            data = self.user_data
+
+            if DEBUG_MODE:
+                return f(self, *args, **kwargs)
+            elif data:
+                for role in roles:
+                    if DEBUG_MODE or role in data.get("roles", []):
+                        return f(self, *args, **kwargs)
+
+                if isinstance(self, APIView):
+                    return self.error(ErrorCodes.unauthorized)
+
+                raise Forbidden()
+            return redirect(url_for("discord.login"))
+
+        return inner
+
+    return inner_decorator
 
 
 def api_key(f):
@@ -17,12 +58,12 @@ def api_key(f):
     """
 
     @wraps(f)
-    def inner(self, *args, **kwargs):
+    def inner_decorator(self: APIView, *args, **kwargs):
         if not request.headers.get("X-API-Key") == os.environ.get("BOT_API_KEY"):
             return self.error(ErrorCodes.invalid_api_key)
         return f(self, *args, **kwargs)
 
-    return inner
+    return inner_decorator
 
 
 def api_params(schema: Schema, validation_type: ValidationTypes = ValidationTypes.json):
@@ -35,10 +76,11 @@ def api_params(schema: Schema, validation_type: ValidationTypes = ValidationType
     This data will always be a list, and view functions are expected to be able to handle that
     in the case of multiple sets of data being provided by the api.
     """
+
     def inner_decorator(f):
 
         @wraps(f)
-        def inner(self, *args, **kwargs):
+        def inner(self: BaseView, *args, **kwargs):
             if validation_type == ValidationTypes.json:
                 try:
                     if not request.is_json:
@@ -48,6 +90,7 @@ def api_params(schema: Schema, validation_type: ValidationTypes = ValidationType
 
                     if not isinstance(data, list):
                         data = [data]
+
                 except JSONDecodeError:
                     return self.error(ErrorCodes.bad_data_format)  # pragma: no cover
 
@@ -60,7 +103,7 @@ def api_params(schema: Schema, validation_type: ValidationTypes = ValidationType
                 data = []
                 longest = None
 
-                for key, items in multi.lists():
+                for _key, items in multi.lists():
                     # Make sure every key has the same number of values
                     if longest is None:
                         # First iteration, store it
@@ -88,5 +131,7 @@ def api_params(schema: Schema, validation_type: ValidationTypes = ValidationType
                 return self.error(ErrorCodes.incorrect_parameters)
 
             return f(self, data, *args, **kwargs)
+
         return inner
+
     return inner_decorator

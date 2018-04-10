@@ -9,14 +9,18 @@ branches:
   only:
     - "master"
 
-cache: pip
-
 install:
   - pip install -r requirements.txt
   - pip install -r requirements-ci.txt
 script:
   - flake8
+  - python gunicorn_config.py
   - py.test app_test.py --cov pysite --cov-report term-missing -v
   - coveralls
 after_success:
   - python deploy.py
+
+cache: pip
+
+notifications:
+  email: false

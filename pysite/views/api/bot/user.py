@@ -1,6 +1,7 @@
 # coding=utf-8
+import logging
 
-from flask import jsonify
+from flask import jsonify, request
 from schema import Schema
 
 from pysite.base_route import APIView
@@ -11,25 +12,23 @@ from pysite.mixins import DBMixin
 SCHEMA = Schema([
     {
         "user_id": int,
-        "role": int
+        "roles": [int],
+        "username": str,
+        "discriminator": str
     }
 ])
-
-REQUIRED_KEYS = [
-    "user_id",
-    "role"
-]
 
 
 class UserView(APIView, DBMixin):
     path = "/user"
-    name = "user"
+    name = "api.bot.user"
     table_name = "users"
     table_primary_key = "user_id"
 
     @api_key
     @api_params(schema=SCHEMA, validation_type=ValidationTypes.json)
     def post(self, data):
+        logging.getLogger(__name__).debug(f"Size of request: {len(request.data)} bytes")
         changes = self.db.insert(
             self.table_name, *data,
             conflict="update"

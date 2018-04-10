@@ -1,6 +1,9 @@
 # coding=utf-8
 
 from enum import Enum, IntEnum
+from os import environ
+
+from flask_wtf import CSRFProtect
 
 
 class ErrorCodes(IntEnum):
@@ -16,10 +19,29 @@ class ValidationTypes(Enum):
     params = "params"
 
 
+DEBUG_MODE = "FLASK_DEBUG" in environ
+
 OWNER_ROLE = 267627879762755584
 ADMIN_ROLE = 267628507062992896
 MODERATOR_ROLE = 267629731250176001
+DEVOPS_ROLE = 409416496733880320
 HELPER_ROLE = 267630620367257601
+
+ALL_STAFF_ROLES = (OWNER_ROLE, ADMIN_ROLE, MODERATOR_ROLE, DEVOPS_ROLE)
+EDITOR_ROLES = ALL_STAFF_ROLES + (HELPER_ROLE,)
+
+SERVER_ID = 267624335836053506
+
+DISCORD_API_ENDPOINT = "https://discordapp.com/api"
+
+DISCORD_OAUTH_REDIRECT = "/auth/discord"
+DISCORD_OAUTH_AUTHORIZED = "/auth/discord/authorized"
+DISCORD_OAUTH_ID = environ.get('DISCORD_OAUTH_ID', '')
+DISCORD_OAUTH_SECRET = environ.get('DISCORD_OAUTH_SECRET', '')
+DISCORD_OAUTH_SCOPE = 'identify email guilds.join'
+OAUTH_DATABASE = "oauth_data"
+
+PREFERRED_URL_SCHEME = environ.get("PREFERRED_URL_SCHEME", "https")  # Change this in testing to "http"
 
 ERROR_DESCRIPTIONS = {
     # 5XX
@@ -43,3 +65,15 @@ ERROR_DESCRIPTIONS = {
     418: "I'm a teapot, I can't make coffee. (._.)",
     429: "Please don't send us that many requests."
 }
+
+# PaperTrail logging
+PAPERTRAIL_ADDRESS = environ.get("PAPERTRAIL_ADDRESS") or None
+PAPERTRAIL_PORT = int(environ.get("PAPERTRAIL_PORT") or 0)
+
+# DataDog logging
+DATADOG_ADDRESS = environ.get("DATADOG_ADDRESS") or None
+DATADOG_PORT = int(environ.get("DATADOG_PORT") or 0)
+
+# CSRF
+
+CSRF = CSRFProtect()

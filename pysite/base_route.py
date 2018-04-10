@@ -2,13 +2,15 @@
 from collections import Iterable
 from typing import Any
 
-from flask import Blueprint, Response, jsonify, render_template
+from flask import Blueprint, Response, jsonify, render_template, url_for
 from flask.views import MethodView
+from werkzeug.exceptions import default_exceptions
 
-from pysite.constants import ErrorCodes
+from pysite.constants import DEBUG_MODE, ErrorCodes
+from pysite.mixins import OauthMixin
 
 
-class BaseView(MethodView):
+class BaseView(MethodView, OauthMixin):
     """
     Base view class with functions and attributes that should be common to all view classes.
 
@@ -21,14 +23,41 @@ class BaseView(MethodView):
         """
         Render some templates and get them back in a form that you can simply return from your view function.
 
+        Here's what's inserted:
+        * "current_page" - the "name" attribute from the view class
+        * "view" - the view class instance
+        * "logged_in" - a boolean, True if the user is logged in
+        * "static_file(filename)", a function used to get the URL for a given static file
+        * "csrf_token()", a function returning the CSRF token stored in the current session
+
+        For XSS protection, a CSRF token must be used. The "csrf_token()" function returns the correct token
+        to be used in the current rendering context - if your view methods are to be protected from XSS
+        exploits, the following steps must be taken:
+
+        1. Apply the "csrf" decorator to the view method
+        2. For forms, a hidden input must be declared in the template, with the name "csrf_token", and the value set to
+           the CSRF token.
+        3. For any AJAX work, the CSRF token should be stored in a variable, and sent as part of the request headers.
+           You can set the "X-CSRFToken" header to the CSRF token for this.
+
+        Any API call or form submission not protected by an API key must not be vulnerable to XSS, unless the API
+        call is intended to be a completely public feature. Public API methods must not be account-bound, and they
+        must never return information on a current user or perform any action. Only data retrieval is permissible.
+
         :param template_names: Names of the templates to render
         :param context: Extra data to pass into the template
         :return: String representing the rendered templates
         """
         context["current_page"] = self.name
         context["view"] = self
+        context["logged_in"] = self.logged_in
+        context["static_file"] = self._static_file
+        context["debug"] = DEBUG_MODE
 
         return render_template(template_names, **context)
+
+    def _static_file(self, filename):
+        return url_for("static", filename=filename)
 
 
 class RouteView(BaseView):
@@ -86,11 +115,12 @@ class APIView(RouteView):
     ...         return self.error(ErrorCodes.unknown_route)
     """
 
-    def error(self, error_code: ErrorCodes) -> Response:
+    def error(self, error_code: ErrorCodes, error_info: str = "") -> Response:
         """
         Generate a JSON response for you to return from your handler, for a specific type of API error
 
         :param error_code: The type of error to generate a response for - see `constants.ErrorCodes` for more
+        :param error_info: An optional message with more information about the error.
         :return: A Flask Response object that you can return from your handler
         """
 
@@ -144,6 +174,7 @@ class ErrorView(BaseView):
     """
 
     error_code = None  # type: Union[int, Iterable]
+    register_on_app = True
 
     @classmethod
     def setup(cls: "ErrorView", manager: "pysite.route_manager.RouteManager", blueprint: Blueprint):
@@ -166,9 +197,13 @@ class ErrorView(BaseView):
 
         if isinstance(cls.error_code, Iterable):
             for code in cls.error_code:
-                try:
+                if isinstance(code, int) and code not in default_exceptions:
+                    continue  # Otherwise we'll possibly get an exception thrown during blueprint registration
+
+                if cls.register_on_app:
                     manager.app.errorhandler(code)(cls.as_view(cls.name))
-                except KeyError:  # This happens if we try to register a handler for a HTTP code that doesn't exist
-                    pass
+                else:
+                    blueprint.errorhandler(code)(cls.as_view(cls.name))
         else:
-            raise RuntimeError("Error views must have an `error_code` that is either an `int` or an iterable")  # pragma: no cover # noqa: E501
+            raise RuntimeError(
+                "Error views must have an `error_code` that is either an `int` or an iterable")  # pragma: no cover # noqa: E501
