@@ -78,7 +78,16 @@
   "Books": {
     "description": "The best books for learning Python or Python Frameworks",
     "resources": {
-    }
+      "Fluent Python": {
+        "description": "Clear, Concise, and Effective Programming",
+        "url": "https://www.safaribooksonline.com/library/view/fluent-python/9781491946237/",
+        "payment": "paid",
+      },
+      "Effective Python": {
+        "description": "59 Specific Ways to Write Better Python",
+        "url": "https://effectivepython.com/",
+        "payment": "paid",
+      }
   },
   "IDEs": {
     "description": "Fully-integrated development environments for serious Python work",
